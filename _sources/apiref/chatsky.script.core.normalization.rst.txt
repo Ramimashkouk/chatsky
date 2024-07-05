@@ -1,0 +1,6 @@
+:source_name: chatsky/script/core/normalization
+
+.. automodule:: chatsky.script.core.normalization
+   :members:
+   :undoc-members:
+   :show-inheritance:

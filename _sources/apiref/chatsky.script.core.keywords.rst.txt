@@ -1,0 +1,6 @@
+:source_name: chatsky/script/core/keywords
+
+.. automodule:: chatsky.script.core.keywords
+   :members:
+   :undoc-members:
+   :show-inheritance:

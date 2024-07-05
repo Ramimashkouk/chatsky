@@ -1,0 +1,12 @@
+:source_name: chatsky/script/extras/slots
+
+chatsky.script.extras.slots package
+===================================
+
+Module contents
+---------------
+
+.. automodule:: chatsky.script.extras.slots
+   :members:
+   :undoc-members:
+   :show-inheritance:

@@ -1,0 +1,6 @@
+:source_name: chatsky/slots/processing
+
+.. automodule:: chatsky.slots.processing
+   :members:
+   :undoc-members:
+   :show-inheritance:

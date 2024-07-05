@@ -1,0 +1,6 @@
+:source_name: chatsky/slots/response
+
+.. automodule:: chatsky.slots.response
+   :members:
+   :undoc-members:
+   :show-inheritance:

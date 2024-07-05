@@ -1,0 +1,6 @@
+:source_name: chatsky/script/core/types
+
+.. automodule:: chatsky.script.core.types
+   :members:
+   :undoc-members:
+   :show-inheritance:
