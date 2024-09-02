@@ -1,14 +1,22 @@
 import asyncio
 
-from chatsky.core import Context, Pipeline, Message, RESPONSE, TRANSITIONS, Transition as Tr
-from chatsky.core.service import ServiceGroup
+from chatsky import Context
+from chatsky.utils.testing import TOY_SCRIPT
+
+from chatsky.script import Message
+from chatsky.pipeline import Pipeline, ServiceGroup
+from chatsky.pipeline.types import ComponentExecutionState
+from chatsky.script.core.keywords import RESPONSE, TRANSITIONS
+from chatsky.utils.testing.common import check_happy_path
+from chatsky.utils.testing.toy_script import HAPPY_PATH
+import chatsky.script.conditions as cnd
 
 
 def test_script_getting_and_setting():
-    script = {"old_flow": {"": {RESPONSE: lambda _, __: Message(), TRANSITIONS: [Tr(dst="", cnd=True)]}}}
+    script = {"old_flow": {"": {RESPONSE: lambda _, __: Message(), TRANSITIONS: {"": cnd.true()}}}}
     pipeline = Pipeline(script=script, start_label=("old_flow", ""))
 
-    new_script = {"new_flow": {"": {RESPONSE: lambda _, __: Message(), TRANSITIONS: [Tr(dst="", cnd=False)]}}}
+    new_script = {"new_flow": {"": {RESPONSE: lambda _, __: Message(), TRANSITIONS: {"": cnd.false()}}}}
     pipeline.script = new_script
     pipeline.start_label = ("new_flow", "")
     assert list(pipeline.script.keys())[0] == list(new_script.keys())[0]
