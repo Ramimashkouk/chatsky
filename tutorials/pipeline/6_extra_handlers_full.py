@@ -52,8 +52,7 @@ Extra handlers have the following constructor arguments / parameters:
 * `timeout` - Timeout for that extra handler
         (for asynchronous extra handlers only).
 * `asynchronous` - A flag that indicates whether the `functions`
-        should be executed asynchronously. The default value
-        of the flag is False.
+        should be executed concurrently. The default value of the flag is False.
 NB! Extra handlers don't have execution state,
 so their names shouldn't appear in built-in condition functions.
 
