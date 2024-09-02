@@ -17,10 +17,11 @@ import pathlib
 
 from chatsky.context_storages import context_storage_factory
 
-from chatsky import Pipeline
+from chatsky.pipeline import Pipeline
 from chatsky.utils.testing.common import (
     check_happy_path,
     is_interactive_mode,
+    run_interactive_mode,
 )
 from chatsky.utils.testing.toy_script import TOY_SCRIPT_KWARGS, HAPPY_PATH
 
@@ -32,8 +33,10 @@ db = context_storage_factory("json://dbs/file.json")
 pipeline = Pipeline(**TOY_SCRIPT_KWARGS, context_storage=db)
 
 if __name__ == "__main__":
-    check_happy_path(pipeline, HAPPY_PATH, printout=True)
+    check_happy_path(pipeline, HAPPY_PATH)
     # a function for automatic tutorial running (testing) with HAPPY_PATH
 
+    # This runs tutorial in interactive mode if not in IPython env
+    # and if `DISABLE_INTERACTIVE_MODE` is not set
     if is_interactive_mode():
-        pipeline.run()
+        run_interactive_mode(pipeline)  # This runs tutorial in interactive mode

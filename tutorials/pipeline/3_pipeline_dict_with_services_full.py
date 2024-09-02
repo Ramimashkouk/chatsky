@@ -18,12 +18,13 @@ import json
 import logging
 import urllib.request
 
-from chatsky import Context, Pipeline
+from chatsky.script import Context
 from chatsky.messengers.console import CLIMessengerInterface
-from chatsky.core.service import Service, ServiceRuntimeInfo
+from chatsky.pipeline import Service, Pipeline, ServiceRuntimeInfo
 from chatsky.utils.testing.common import (
     check_happy_path,
     is_interactive_mode,
+    run_interactive_mode,
 )
 
 from chatsky.utils.testing.toy_script import TOY_SCRIPT, HAPPY_PATH
@@ -124,7 +125,8 @@ def postprocess(ctx: Context, pl: Pipeline):
         f"resulting misc looks like:"
         f"{json.dumps(ctx.misc, indent=4, default=str)}"
     )
-    received_response = pl.script.get_inherited_node(pl.fallback_label).response
+    fallback_flow, fallback_node, _ = pl.actor.fallback_label
+    received_response = pl.script[fallback_flow][fallback_node].response
     responses_match = received_response == ctx.last_response
     logger.info(f"actor is{'' if responses_match else ' not'} in fallback node")
 
@@ -159,6 +161,6 @@ pipeline_dict = {
 pipeline = Pipeline.model_validate(pipeline_dict)
 
 if __name__ == "__main__":
-    check_happy_path(pipeline, HAPPY_PATH, printout=True)
+    check_happy_path(pipeline, HAPPY_PATH)
     if is_interactive_mode():
-        pipeline.run()
+        run_interactive_mode(pipeline)

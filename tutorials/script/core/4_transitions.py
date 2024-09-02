@@ -4,11 +4,13 @@
 
 This tutorial shows settings for transitions between flows and nodes.
 
-Here, [conditions](%doclink(api,conditions.standard))
+Here, [conditions](%doclink(api,script.conditions.std_conditions))
 for transition between many different script steps are shown.
 
 Some of the destination steps can be set using
-[destinations](%doclink(api,destinations.standard)).
+[labels](%doclink(api,script.labels.std_labels)).
+
+First of all, let's do all the necessary imports from Chatsky.
 """
 
 
@@ -17,249 +19,216 @@ Some of the destination steps can be set using
 # %%
 import re
 
-from chatsky.core import (
-    TRANSITIONS,
-    RESPONSE,
-    Context,
-    NodeLabelInitTypes,
-    Pipeline,
-    Transition as Tr,
-    BaseDestination,
-)
-import chatsky.conditions as cnd
-import chatsky.destinations as dst
+from chatsky.script import TRANSITIONS, RESPONSE, Context, ConstLabel, Message
+import chatsky.script.conditions as cnd
+import chatsky.script.labels as lbl
+from chatsky.pipeline import Pipeline
 from chatsky.utils.testing.common import (
     check_happy_path,
     is_interactive_mode,
+    run_interactive_mode,
 )
 
 # %% [markdown]
 """
-The `TRANSITIONS` keyword is used to determine a list of transitions from
-the current node. After receiving user request, Pipeline will choose the
-next node relying on that list.
-If no transition in the list is suitable, transition will be made
-to the fallback node.
+Let's define the functions with a special type of return value:
 
-Each transition is represented by the %mddoclink(api,core.transition,Transition)
-class.
+    ConstLabel == Flow Name; Node Name; Priority
 
-It has three main fields:
+These functions return Labels that
+determine destination and priority of a specific transition.
 
-- dst: Destination determines the node to which the transition is made.
-- cnd: Condition determines if the transition is allowed.
-- priority: Allows choosing one of the transitions if several are allowed.
-    Higher priority transitions will be chosen over the rest.
-    If priority is not set,
-    %mddoclink(api,core.pipeline,Pipeline.default_priority)
-    is used instead.
-    Default priority is 1 by default (but may be set via Pipeline).
+Labels consist of:
 
-For more details on how the next node is chosen see
-[here](%doclink(api,core.transition,get_next_label)).
+1. Flow name of the destination node
+   (optional; defaults to flow name of the current node).
+2. Node name of the destination node
+   (required).
+3. Priority of the transition (more on that later)
+   (optional; defaults to pipeline's
+   [label_priority](%doclink(api,pipeline.pipeline.pipeline))).
 
-Like conditions, all of these fields can be either constant values or
-custom functions (%mddoclink(api,core.script_function,BaseDestination),
-%mddoclink(api,core.script_function,BaseCondition),
-%mddoclink(api,core.script_function,BasePriority)).
-"""
-
-# %% [markdown]
-"""
-## Destinations
-
-Destination node is specified with a %mddoclink(api,core.node_label,NodeLabel)
-class.
-
-It contains two field:
-
-- "flow_name": Name of the flow the node belongs to.
-    Optional; if not set, will use the flow of the current node.
-- "node_name": Name of the node inside the flow.
-
-Instances of this class can be initialized from a tuple of two strings
-(flow name and node name) or a single string (node name; relative flow name).
-This happens automatically for return values of `BaseDestination`
-and for the `dst` field of `Transition`.
+An example of omitting optional arguments is shown in the body of the
+`greeting_flow_n2_transition` function:
 """
 
 
 # %%
-class GreetingFlowNode2(BaseDestination):
-    async def call(self, ctx: Context) -> NodeLabelInitTypes:
-        return "greeting_flow", "node2"
+def greeting_flow_n2_transition(_: Context, __: Pipeline) -> ConstLabel:
+    return "greeting_flow", "node2"
+
+
+def high_priority_node_transition(flow_name, node_name):
+    def transition(_: Context, __: Pipeline) -> ConstLabel:
+        return flow_name, node_name, 2.0
+
+    return transition
 
 
 # %% [markdown]
 """
-Chatsky provides several basic transitions as part of
-the %mddoclink(api,destinations.standard) module:
+Priority is needed to select a condition
+in the situation where more than one condition is `True`.
+All conditions in `TRANSITIONS` are being checked.
+Of the set of `True` conditions,
+the one that has the highest priority will be executed.
+Of the set of `True` conditions with largest
+priority the first met condition will be executed.
 
-- `FromHistory` returns a node from label history.
-    `Current` and `Previous` are subclasses of it that return specific nodes
-    (current node and previous node respectively).
-- `Start` returns the start node.
-- `Fallback` returns the fallback node.
-- `Forward` returns the next node (in order of definition)
-    in the current flow relative to the current node.
-- `Backward` returns the previous node (in order of definition)
-    in the current flow relative to the current node.
+Out of the box `chatsky.script.core.labels`
+offers the following methods:
+
+* `lbl.repeat()` returns transition handler
+    which returns `ConstLabel` to the last node,
+
+* `lbl.previous()` returns transition handler
+    which returns `ConstLabel` to the previous node,
+
+* `lbl.to_start()` returns transition handler
+    which returns `ConstLabel` to the start node,
+
+* `lbl.to_fallback()` returns transition
+    handler which returns `ConstLabel` to the fallback node,
+
+* `lbl.forward()` returns transition handler
+    which returns `ConstLabel` to the forward node,
+
+* `lbl.backward()` returns transition handler
+    which returns `ConstLabel` to the backward node.
+
+There are three flows here: `global_flow`, `greeting_flow`, `music_flow`.
 """
 
 # %%
 toy_script = {
     "global_flow": {
-        "start_node": {
-            TRANSITIONS: [
-                Tr(
-                    dst=("music_flow", "node1"),
-                    cnd=cnd.Regexp(r"talk about music"),
-                    # this condition is checked first.
-                    # if it fails, pipeline will try the next transition
-                ),
-                Tr(
-                    dst=("greeting_flow", "node1"),
-                    cnd=cnd.Regexp(r"hi|hello", flags=re.IGNORECASE),
-                ),
-                Tr(
-                    dst="fallback_node",
-                    # a single string references a node in the same flow
-                ),
-                # this transition will only be made if previous ones fail
-            ]
+        "start_node": {  # This is an initial node,
+            # it doesn't need a `RESPONSE`.
+            RESPONSE: Message(),
+            TRANSITIONS: {
+                ("music_flow", "node1"): cnd.regexp(
+                    r"talk about music"
+                ),  # first check
+                ("greeting_flow", "node1"): cnd.regexp(
+                    r"hi|hello", re.IGNORECASE
+                ),  # second check
+                "fallback_node": cnd.true(),  # third check
+                # "fallback_node" is equivalent to
+                # ("global_flow", "fallback_node").
+            },
         },
-        "fallback_node": {
-            RESPONSE: "Ooops",
-            TRANSITIONS: [
-                Tr(
-                    dst=("music_flow", "node1"),
-                    cnd=cnd.Regexp(r"talk about music"),
-                ),
-                Tr(
-                    dst=("greeting_flow", "node1"),
-                    cnd=cnd.Regexp(r"hi|hello", flags=re.IGNORECASE),
-                ),
-                Tr(
-                    dst=dst.Previous(),
-                    cnd=cnd.Regexp(r"previous", flags=re.IGNORECASE),
-                ),
-                Tr(
-                    dst=dst.Current(),  # this goes to the current node
-                    # i.e. fallback node
-                ),
-            ],
+        "fallback_node": {  # We get to this node if
+            # an error occurred while the agent was running.
+            RESPONSE: Message("Ooops"),
+            TRANSITIONS: {
+                ("music_flow", "node1"): cnd.regexp(
+                    r"talk about music"
+                ),  # first check
+                ("greeting_flow", "node1"): cnd.regexp(
+                    r"hi|hello", re.IGNORECASE
+                ),  # second check
+                lbl.previous(): cnd.regexp(
+                    r"previous", re.IGNORECASE
+                ),  # third check
+                # lbl.previous() is equivalent
+                # to ("previous_flow", "previous_node")
+                lbl.repeat(): cnd.true(),  # fourth check
+                # lbl.repeat() is equivalent to ("global_flow", "fallback_node")
+            },
         },
     },
     "greeting_flow": {
         "node1": {
-            RESPONSE: "Hi, how are you?",
-            TRANSITIONS: [
-                Tr(
-                    dst=("global_flow", "fallback_node"),
-                    priority=0.1,
-                ),  # due to low priority (default priority is 1)
-                # this transition will be made if the next one fails
-                Tr(dst="node2", cnd=cnd.Regexp(r"how are you")),
-            ],
+            RESPONSE: Message("Hi, how are you?"),
+            # When the agent goes to node1, we return "Hi, how are you?"
+            TRANSITIONS: {
+                (
+                    "global_flow",
+                    "fallback_node",
+                    0.1,
+                ): cnd.true(),  # second check
+                "node2": cnd.regexp(r"how are you"),  # first check
+                # "node2" is equivalent to ("greeting_flow", "node2", 1.0)
+            },
         },
         "node2": {
-            RESPONSE: "Good. What do you want to talk about?",
-            TRANSITIONS: [
-                Tr(
-                    dst=dst.Fallback(),
-                    priority=0.1,
-                ),
-                # there is no need to specify such transition:
-                # For any node if all transitions fail,
-                # fallback node becomes the next node.
-                # Here, this transition exists for demonstration purposes.
-                Tr(
-                    dst=dst.Forward(),  # i.e. "node3" of this flow
-                    cnd=cnd.Regexp(r"talk about"),
-                    priority=0.5,
-                ),  # this transition is the third candidate
-                Tr(
-                    dst=("music_flow", "node1"),
-                    cnd=cnd.Regexp(r"talk about music"),
-                ),  # this transition is the first candidate
-                Tr(
-                    dst=dst.Previous(),
-                    cnd=cnd.Regexp(r"previous", flags=re.IGNORECASE),
-                ),  # this transition is the second candidate
-            ],
+            RESPONSE: Message("Good. What do you want to talk about?"),
+            TRANSITIONS: {
+                lbl.to_fallback(0.1): cnd.true(),  # fourth check
+                # lbl.to_fallback(0.1) is equivalent
+                # to ("global_flow", "fallback_node", 0.1)
+                lbl.forward(0.5): cnd.regexp(r"talk about"),  # third check
+                # lbl.forward(0.5) is equivalent
+                # to ("greeting_flow", "node3", 0.5)
+                ("music_flow", "node1"): cnd.regexp(
+                    r"talk about music"
+                ),  # first check
+                # ("music_flow", "node1") is equivalent
+                # to ("music_flow", "node1", 1.0)
+                lbl.previous(): cnd.regexp(
+                    r"previous", re.IGNORECASE
+                ),  # second check
+            },
         },
         "node3": {
-            RESPONSE: "Sorry, I can not talk about that now.",
-            TRANSITIONS: [Tr(dst=dst.Forward(), cnd=cnd.Regexp(r"bye"))],
+            RESPONSE: Message("Sorry, I can not talk about that now."),
+            TRANSITIONS: {lbl.forward(): cnd.regexp(r"bye")},
         },
         "node4": {
-            RESPONSE: "Bye",
-            TRANSITIONS: [
-                Tr(
-                    dst="node1",
-                    cnd=cnd.Regexp(r"hi|hello", flags=re.IGNORECASE),
-                )
-            ],
+            RESPONSE: Message("Bye"),
+            TRANSITIONS: {
+                "node1": cnd.regexp(r"hi|hello", re.IGNORECASE),  # first check
+                lbl.to_fallback(): cnd.true(),  # second check
+            },
         },
     },
     "music_flow": {
         "node1": {
-            RESPONSE: "I love `System of a Down` group, "
-            "would you like to talk about it?",
-            TRANSITIONS: [
-                Tr(
-                    dst=dst.Forward(),
-                    cnd=cnd.Regexp(r"yes|yep|ok", flags=re.IGNORECASE),
-                )
-            ],
+            RESPONSE: Message(
+                text="I love `System of a Down` group, "
+                "would you like to talk about it?"
+            ),
+            TRANSITIONS: {
+                lbl.forward(): cnd.regexp(r"yes|yep|ok", re.IGNORECASE),
+                lbl.to_fallback(): cnd.true(),
+            },
         },
         "node2": {
-            RESPONSE: "System of a Down is an Armenian-American "
-            "heavy metal band formed in 1994.",
-            TRANSITIONS: [
-                Tr(
-                    dst=dst.Forward(),
-                    cnd=cnd.Regexp(r"next", flags=re.IGNORECASE),
-                ),
-                Tr(
-                    dst=dst.Current(),
-                    cnd=cnd.Regexp(r"repeat", flags=re.IGNORECASE),
-                ),
-            ],
+            RESPONSE: Message(
+                text="System of a Down is "
+                "an Armenian-American heavy metal band formed in 1994."
+            ),
+            TRANSITIONS: {
+                lbl.forward(): cnd.regexp(r"next", re.IGNORECASE),
+                lbl.repeat(): cnd.regexp(r"repeat", re.IGNORECASE),
+                lbl.to_fallback(): cnd.true(),
+            },
         },
         "node3": {
-            RESPONSE: "The band achieved commercial success "
-            "with the release of five studio albums.",
-            TRANSITIONS: [
-                Tr(
-                    dst=dst.Forward(),
-                    cnd=cnd.Regexp(r"next", flags=re.IGNORECASE),
-                ),
-                Tr(
-                    dst=dst.Backward(),
-                    cnd=cnd.Regexp(r"back", flags=re.IGNORECASE),
-                ),
-                Tr(
-                    dst=dst.Current(),
-                    cnd=cnd.Regexp(r"repeat", flags=re.IGNORECASE),
-                ),
-            ],
+            RESPONSE: Message(
+                text="The band achieved commercial success "
+                "with the release of five studio albums."
+            ),
+            TRANSITIONS: {
+                lbl.forward(): cnd.regexp(r"next", re.IGNORECASE),
+                lbl.backward(): cnd.regexp(r"back", re.IGNORECASE),
+                lbl.repeat(): cnd.regexp(r"repeat", re.IGNORECASE),
+                lbl.to_fallback(): cnd.true(),
+            },
         },
         "node4": {
-            RESPONSE: "That's all I know.",
-            TRANSITIONS: [
-                Tr(
-                    dst=GreetingFlowNode2(),
-                    cnd=cnd.Regexp(r"next", flags=re.IGNORECASE),
-                ),
-                Tr(
-                    dst=("greeting_flow", "node4"),
-                    cnd=cnd.Regexp(r"next time", flags=re.IGNORECASE),
-                    priority=2,
-                ),  # "next" is contained in "next_time" so we need higher
-                # priority here.
-                # Otherwise, this transition will never be made
-            ],
+            RESPONSE: Message("That's all what I know."),
+            TRANSITIONS: {
+                greeting_flow_n2_transition: cnd.regexp(
+                    r"next", re.IGNORECASE
+                ),  # second check
+                high_priority_node_transition(
+                    "greeting_flow", "node4"
+                ): cnd.regexp(
+                    r"next time", re.IGNORECASE
+                ),  # first check
+                lbl.to_fallback(): cnd.true(),  # third check
+            },
         },
     },
 }
@@ -300,12 +269,12 @@ happy_path = (
         "The band achieved commercial success "
         "with the release of five studio albums.",
     ),
-    ("next", "That's all I know."),
+    ("next", "That's all what I know."),
     (
         "next",
         "Good. What do you want to talk about?",
     ),
-    ("previous", "That's all I know."),
+    ("previous", "That's all what I know."),
     ("next time", "Bye"),
     ("stop", "Ooops"),
     ("previous", "Bye"),
@@ -333,6 +302,6 @@ pipeline = Pipeline(
 )
 
 if __name__ == "__main__":
-    check_happy_path(pipeline, happy_path, printout=True)
+    check_happy_path(pipeline, happy_path)
     if is_interactive_mode():
-        pipeline.run()
+        run_interactive_mode(pipeline)

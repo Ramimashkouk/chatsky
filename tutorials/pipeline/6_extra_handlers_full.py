@@ -18,16 +18,18 @@ from datetime import datetime
 
 import psutil
 
-from chatsky.core.service import (
+from chatsky.pipeline import (
+    Pipeline,
     ServiceGroup,
     ExtraHandlerRuntimeInfo,
     ServiceRuntimeInfo,
     to_service,
 )
-from chatsky import Context, Pipeline
+from chatsky.script import Context
 from chatsky.utils.testing.common import (
     check_happy_path,
     is_interactive_mode,
+    run_interactive_mode,
 )
 from chatsky.utils.testing.toy_script import HAPPY_PATH, TOY_SCRIPT
 
@@ -183,6 +185,6 @@ pipeline_dict = {
 pipeline = Pipeline(**pipeline_dict)
 
 if __name__ == "__main__":
-    check_happy_path(pipeline, HAPPY_PATH, printout=True)
+    check_happy_path(pipeline, HAPPY_PATH)
     if is_interactive_mode():
-        pipeline.run()
+        run_interactive_mode(pipeline)

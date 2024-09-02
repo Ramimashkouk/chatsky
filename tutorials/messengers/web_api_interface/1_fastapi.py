@@ -10,17 +10,20 @@ You can see the result at http://127.0.0.1:8000/docs.
 Here, %mddoclink(api,messengers.common.interface,CallbackMessengerInterface)
 is used to process requests.
 
-%mddoclink(api,core.message,Message)
+%mddoclink(api,script.core.message,Message)
 is used in creating a JSON Schema for the endpoint.
 """
+
 # %pip install chatsky uvicorn fastapi
 
 # %%
 from chatsky.messengers.common.interface import CallbackMessengerInterface
-from chatsky import Message, Pipeline
+from chatsky.script import Message
+from chatsky.pipeline import Pipeline
 from chatsky.utils.testing import TOY_SCRIPT_KWARGS, is_interactive_mode
 
 import uvicorn
+from pydantic import BaseModel
 from fastapi import FastAPI
 
 # %% [markdown]
@@ -89,13 +92,18 @@ pipeline = Pipeline(
 app = FastAPI()
 
 
-@app.post("/chat", response_model=Message)
+class Output(BaseModel):
+    user_id: str
+    response: Message
+
+
+@app.post("/chat", response_model=Output)
 async def respond(
     user_id: str,
     user_message: Message,
 ):
     context = await messenger_interface.on_request_async(user_message, user_id)
-    return context.last_response
+    return {"user_id": user_id, "response": context.last_response}
 
 
 # %%

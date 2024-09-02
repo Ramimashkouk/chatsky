@@ -222,7 +222,8 @@ concurrency = [
 [tool.coverage.report]
 # Regexes for lines to exclude from consideration
 exclude_also = [
-    "if TYPE_CHECKING:",
-    "raise NotImplementedError",
-    "raise RuntimeError",
+    # Don't complain if tests don't cover raising errors:
+    "raise .*",
+    # Don't complain if tests don't cover error handling:
+    "except .*",
     ]

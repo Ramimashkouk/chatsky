@@ -1,6 +1,6 @@
 import uuid
 
-from chatsky.core import Context
+from chatsky.script import Context
 import pytest
 
 

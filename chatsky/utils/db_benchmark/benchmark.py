@@ -33,7 +33,7 @@ from pydantic import BaseModel, Field
 from tqdm.auto import tqdm
 
 from chatsky.context_storages import DBContextStorage
-from chatsky.core import Context
+from chatsky.script import Context
 
 
 def time_context_read_write(

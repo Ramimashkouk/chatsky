@@ -46,12 +46,13 @@ https://opentelemetry.io/docs/instrumentation/python/manual/
 # %%
 import asyncio
 
-from chatsky.core.service import (
+from chatsky.pipeline import (
+    Pipeline,
     ExtraHandlerRuntimeInfo,
     GlobalExtraHandlerType,
     to_service,
 )
-from chatsky import Context, Pipeline
+from chatsky.script import Context
 from chatsky.stats import OtelInstrumentor, default_extractors
 from chatsky.utils.testing import is_interactive_mode, check_happy_path
 from chatsky.utils.testing.toy_script import TOY_SCRIPT, HAPPY_PATH
@@ -128,6 +129,6 @@ pipeline.actor.add_extra_handler(
     GlobalExtraHandlerType.BEFORE, default_extractors.get_current_label
 )
 if __name__ == "__main__":
-    check_happy_path(pipeline, HAPPY_PATH, printout=True)
+    check_happy_path(pipeline, HAPPY_PATH)
     if is_interactive_mode():
         pipeline.run()

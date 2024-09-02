@@ -13,8 +13,8 @@ Detailed examples can be found in the `tutorials` section.
 
 from datetime import datetime
 
-from chatsky.core import Context, Pipeline
-from chatsky.core.service.extra import ExtraHandlerRuntimeInfo
+from chatsky.script import Context
+from chatsky.pipeline import ExtraHandlerRuntimeInfo, Pipeline
 from .utils import get_extra_handler_name
 
 
@@ -29,11 +29,9 @@ async def get_current_label(ctx: Context, pipeline: Pipeline, info: ExtraHandler
 
     """
     last_label = ctx.last_label
-    return {
-        "flow": last_label.flow_name,
-        "node": last_label.node_name,
-        "label": f"{last_label.flow_name}: {last_label.node_name}",
-    }
+    if last_label is None:
+        last_label = pipeline.actor.start_label[:2]
+    return {"flow": last_label[0], "node": last_label[1], "label": ": ".join(last_label)}
 
 
 async def get_timing_before(ctx: Context, _, info: ExtraHandlerRuntimeInfo):
@@ -61,7 +59,7 @@ async def get_timing_after(ctx: Context, _, info: ExtraHandlerRuntimeInfo):  # n
 async def get_last_response(ctx: Context, _, info: ExtraHandlerRuntimeInfo):
     """
     Extract the text of the last response in the current context.
-    This handler is best used together with the `Actor` component.
+    This handler is best used together with the `ACTOR` component.
 
     This function is required to enable charts that aggregate requests and responses.
     """
@@ -72,7 +70,7 @@ async def get_last_response(ctx: Context, _, info: ExtraHandlerRuntimeInfo):
 async def get_last_request(ctx: Context, _, info: ExtraHandlerRuntimeInfo):
     """
     Extract the text of the last request in the current context.
-    This handler is best used together with the `Actor` component.
+    This handler is best used together with the `ACTOR` component.
 
     This function is required to enable charts that aggregate requests and responses.
     """

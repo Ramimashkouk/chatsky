@@ -9,25 +9,27 @@ module packaged with `chatsky`.
 # %pip install chatsky
 
 # %%
-from chatsky import (
+from chatsky.script import conditions as cnd
+from chatsky.script import (
     RESPONSE,
     TRANSITIONS,
-    PRE_TRANSITION,
-    PRE_RESPONSE,
+    PRE_TRANSITIONS_PROCESSING,
+    PRE_RESPONSE_PROCESSING,
     GLOBAL,
     LOCAL,
-    Pipeline,
-    Tr,
-    cnd,
-    proc,
-    rsp,
+    Message,
 )
 
-from chatsky.slots import RegexpSlot
+from chatsky.pipeline import Pipeline
+from chatsky.slots import GroupSlot, RegexpSlot
+from chatsky.slots import processing as slot_procs
+from chatsky.slots import response as slot_rsp
+from chatsky.slots import conditions as slot_cnd
 
 from chatsky.utils.testing import (
     check_happy_path,
     is_interactive_mode,
+    run_interactive_mode,
 )
 
 # %% [markdown]
@@ -53,42 +55,42 @@ Currently there are two types of value slots:
 """
 
 # %%
-SLOTS = {
-    "person": {
-        "username": RegexpSlot(
+SLOTS = GroupSlot(
+    person=GroupSlot(
+        username=RegexpSlot(
             regexp=r"username is ([a-zA-Z]+)",
             match_group_idx=1,
         ),
-        "email": RegexpSlot(
+        email=RegexpSlot(
             regexp=r"email is ([a-z@\.A-Z]+)",
             match_group_idx=1,
         ),
-    },
-    "friend": {
-        "first_name": RegexpSlot(regexp=r"^[A-Z][a-z]+?(?= )"),
-        "last_name": RegexpSlot(regexp=r"(?<= )[A-Z][a-z]+"),
-    },
-}
+    ),
+    friend=GroupSlot(
+        first_name=RegexpSlot(regexp=r"^[A-Z][a-z]+?(?= )"),
+        last_name=RegexpSlot(regexp=r"(?<= )[A-Z][a-z]+"),
+    ),
+)
 
 # %% [markdown]
 """
 The slots module provides several functions for managing slots in-script:
 
-- %mddoclink(api,conditions.slots,SlotsExtracted):
+- %mddoclink(api,slots.conditions,slots_extracted):
     Condition for checking if specified slots are extracted.
-- %mddoclink(api,processing.slots,Extract):
+- %mddoclink(api,slots.processing,extract):
     A processing function that extracts specified slots.
-- %mddoclink(api,processing.slots,ExtractAll):
+- %mddoclink(api,slots.processing,extract_all):
     A processing function that extracts all slots.
-- %mddoclink(api,processing.slots,Unset):
+- %mddoclink(api,slots.processing,unset):
     A processing function that marks specified slots as not extracted,
     effectively resetting their state.
-- %mddoclink(api,processing.slots,UnsetAll):
+- %mddoclink(api,slots.processing,unset_all):
     A processing function that marks all slots as not extracted.
-- %mddoclink(api,processing.slots,FillTemplate):
+- %mddoclink(api,slots.processing,fill_template):
     A processing function that fills the `response`
     Message text with extracted slot values.
-- %mddoclink(api,responses.slots,FilledTemplate):
+- %mddoclink(api,slots.response,filled_template):
     A response function that takes a Message with a
     format-string text and returns Message
     with its text string filled with extracted slot values.
@@ -98,101 +100,120 @@ The usage of all the above functions is shown in the following script:
 
 # %%
 script = {
-    GLOBAL: {
-        TRANSITIONS: [
-            Tr(dst=("username_flow", "ask"), cnd=cnd.Regexp(r"^[sS]tart"))
-        ]
-    },
+    GLOBAL: {TRANSITIONS: {("username_flow", "ask"): cnd.regexp(r"^[sS]tart")}},
     "username_flow": {
         LOCAL: {
-            PRE_TRANSITION: {"get_slot": proc.Extract("person.username")},
-            TRANSITIONS: [
-                Tr(
-                    dst=("email_flow", "ask"),
-                    cnd=cnd.SlotsExtracted("person.username"),
-                    priority=1.2,
+            PRE_TRANSITIONS_PROCESSING: {
+                "get_slot": slot_procs.extract("person.username")
+            },
+            TRANSITIONS: {
+                ("email_flow", "ask", 1.2): slot_cnd.slots_extracted(
+                    "person.username"
                 ),
-                Tr(dst=("username_flow", "repeat_question"), priority=0.8),
-            ],
+                ("username_flow", "repeat_question", 0.8): cnd.true(),
+            },
         },
         "ask": {
-            RESPONSE: "Write your username (my username is ...):",
+            RESPONSE: Message(text="Write your username (my username is ...):"),
         },
         "repeat_question": {
-            RESPONSE: "Please, type your username again (my username is ...):",
+            RESPONSE: Message(
+                text="Please, type your username again (my username is ...):"
+            )
         },
     },
     "email_flow": {
         LOCAL: {
-            PRE_TRANSITION: {"get_slot": proc.Extract("person.email")},
-            TRANSITIONS: [
-                Tr(
-                    dst=("friend_flow", "ask"),
-                    cnd=cnd.SlotsExtracted("person.username", "person.email"),
-                    priority=1.2,
+            PRE_TRANSITIONS_PROCESSING: {
+                "get_slot": slot_procs.extract("person.email")
+            },
+            TRANSITIONS: {
+                ("friend_flow", "ask", 1.2): slot_cnd.slots_extracted(
+                    "person.username", "person.email"
                 ),
-                Tr(dst=("email_flow", "repeat_question"), priority=0.8),
-            ],
+                ("email_flow", "repeat_question", 0.8): cnd.true(),
+            },
         },
         "ask": {
-            RESPONSE: "Write your email (my email is ...):",
+            RESPONSE: Message(text="Write your email (my email is ...):"),
         },
         "repeat_question": {
-            RESPONSE: "Please, write your email again (my email is ...):",
+            RESPONSE: Message(
+                text="Please, write your email again (my email is ...):"
+            )
         },
     },
     "friend_flow": {
         LOCAL: {
-            PRE_TRANSITION: {"get_slots": proc.Extract("friend")},
-            TRANSITIONS: [
-                Tr(
-                    dst=("root", "utter"),
-                    cnd=cnd.SlotsExtracted(
-                        "friend.first_name", "friend.last_name", mode="any"
-                    ),
-                    priority=1.2,
+            PRE_TRANSITIONS_PROCESSING: {
+                "get_slots": slot_procs.extract("friend")
+            },
+            TRANSITIONS: {
+                ("root", "utter", 1.2): slot_cnd.slots_extracted(
+                    "friend.first_name", "friend.last_name", mode="any"
                 ),
-                Tr(dst=("friend_flow", "repeat_question"), priority=0.8),
-            ],
+                ("friend_flow", "repeat_question", 0.8): cnd.true(),
+            },
         },
-        "ask": {RESPONSE: "Please, name me one of your friends: (John Doe)"},
+        "ask": {
+            RESPONSE: Message(
+                text="Please, name me one of your friends: (John Doe)"
+            )
+        },
         "repeat_question": {
-            RESPONSE: "Please, name me one of your friends again: (John Doe)"
+            RESPONSE: Message(
+                text="Please, name me one of your friends again: (John Doe)"
+            )
         },
     },
     "root": {
         "start": {
-            TRANSITIONS: [Tr(dst=("username_flow", "ask"))],
+            RESPONSE: Message(text=""),
+            TRANSITIONS: {("username_flow", "ask"): cnd.true()},
         },
         "fallback": {
-            RESPONSE: "Finishing query",
-            TRANSITIONS: [Tr(dst=("username_flow", "ask"))],
+            RESPONSE: Message(text="Finishing query"),
+            TRANSITIONS: {("username_flow", "ask"): cnd.true()},
         },
         "utter": {
-            RESPONSE: rsp.FilledTemplate(
-                "Your friend is {friend.first_name} {friend.last_name}"
+            RESPONSE: slot_rsp.filled_template(
+                Message(
+                    text="Your friend is {friend.first_name} {friend.last_name}"
+                )
             ),
-            TRANSITIONS: [Tr(dst=("root", "utter_alternative"))],
+            TRANSITIONS: {("root", "utter_alternative"): cnd.true()},
         },
         "utter_alternative": {
-            RESPONSE: "Your username is {person.username}. "
-            "Your email is {person.email}.",
-            PRE_RESPONSE: {"fill": proc.FillTemplate()},
+            RESPONSE: Message(
+                text="Your username is {person.username}. "
+                "Your email is {person.email}."
+            ),
+            PRE_RESPONSE_PROCESSING: {"fill": slot_procs.fill_template()},
+            TRANSITIONS: {("root", "fallback"): cnd.true()},
         },
     },
 }
 
 # %%
 HAPPY_PATH = [
-    ("hi", "Write your username (my username is ...):"),
-    ("my username is groot", "Write your email (my email is ...):"),
     (
-        "my email is groot@gmail.com",
-        "Please, name me one of your friends: (John Doe)",
+        Message(text="hi"),
+        Message(text="Write your username (my username is ...):"),
     ),
-    ("Bob Page", "Your friend is Bob Page"),
-    ("ok", "Your username is groot. Your email is groot@gmail.com."),
-    ("ok", "Finishing query"),
+    (
+        Message(text="my username is groot"),
+        Message(text="Write your email (my email is ...):"),
+    ),
+    (
+        Message(text="my email is groot@gmail.com"),
+        Message(text="Please, name me one of your friends: (John Doe)"),
+    ),
+    (Message(text="Bob Page"), Message(text="Your friend is Bob Page")),
+    (
+        Message(text="ok"),
+        Message(text="Your username is groot. Your email is groot@gmail.com."),
+    ),
+    (Message(text="ok"), Message(text="Finishing query")),
 ]
 
 # %%
@@ -205,9 +226,11 @@ pipeline = Pipeline(
 
 if __name__ == "__main__":
     check_happy_path(
-        pipeline, HAPPY_PATH, printout=True
+        pipeline, HAPPY_PATH
     )  # This is a function for automatic tutorial running
     # (testing) with HAPPY_PATH
 
+    # This runs tutorial in interactive mode if not in IPython env
+    # and if `DISABLE_INTERACTIVE_MODE` is not set
     if is_interactive_mode():
-        pipeline.run()
+        run_interactive_mode(pipeline)

@@ -79,40 +79,53 @@ All the abstractions used in this example are thoroughly explained in the dedica
 [user guide](https://deeppavlov.github.io/chatsky/user_guides/basic_conceptions.html).
 
 ```python
-from chatsky import GLOBAL, TRANSITIONS, RESPONSE, Pipeline, cnd, Tr
+from chatsky.script import GLOBAL, TRANSITIONS, RESPONSE, Message
+from chatsky.pipeline import Pipeline
+import chatsky.script.conditions.std_conditions as cnd
 
 # create a dialog script
 script = {
     GLOBAL: {
-        TRANSITIONS: [
-            Tr(
-                dst=("flow", "node_hi"),
-                cnd=cnd.ExactMatch("Hi"),
-            ),
-            Tr(
-                dst=("flow", "node_ok")
-            )
-        ]
+        TRANSITIONS: {
+            ("flow", "node_hi"): cnd.exact_match("Hi"),
+            ("flow", "node_ok"): cnd.true()
+        }
     },
     "flow": {
-        "node_hi": {RESPONSE: "Hi!"},
-        "node_ok": {RESPONSE: "OK"},
+        "node_hi": {RESPONSE: Message("Hi!")},
+        "node_ok": {RESPONSE: Message("OK")},
     },
 }
 
-# initialize Pipeline (needed to run the script)
-pipeline = Pipeline(script, start_label=("flow", "node_hi"))
+# init pipeline
+pipeline = Pipeline.from_script(script, start_label=("flow", "node_hi"))
 
 
-pipeline.run()
+def turn_handler(in_request: Message, pipeline: Pipeline) -> Message:
+    # Pass user request into pipeline and get dialog context (message history)
+    # The pipeline will automatically choose the correct response using script
+    ctx = pipeline(in_request, 0)
+    # Get last response from the context
+    out_response = ctx.last_response
+    return out_response
+
+
+while True:
+    in_request = input("Your message: ")
+    out_response = turn_handler(Message(in_request), pipeline)
+    print("Response: ", out_response.text)
 ```
 
 When you run this code, you get similar output:
 ```
-request: hi
-response: text='OK'
-request: Hi
-response: text='Hi!'
+Your message: hi
+Response:  OK
+Your message: Hi
+Response:  Hi!
+Your message: ok
+Response:  OK
+Your message: ok
+Response:  OK
 ```
 
 More advanced examples are available as a part of documentation:

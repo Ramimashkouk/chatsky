@@ -19,9 +19,11 @@ import os
 
 from pydantic import HttpUrl
 
-from chatsky import GLOBAL, RESPONSE, TRANSITIONS, Message, Pipeline, Tr, cnd
+from chatsky.script import conditions as cnd
+from chatsky.script import GLOBAL, RESPONSE, TRANSITIONS, Message
 from chatsky.messengers.telegram import LongpollingInterface
-from chatsky.core.message import (
+from chatsky.pipeline import Pipeline
+from chatsky.script.core.message import (
     Animation,
     Audio,
     Contact,
@@ -129,45 +131,44 @@ QUOTED_ATTACHMENTS = [f'"{attachment}"' for attachment in ATTACHMENTS]
 """
 The bot below sends different attachments on request.
 
-[Here](%doclink(api,core.message)) you can find
+[Here](%doclink(api,script.core.message)) you can find
 all the attachment options available.
 """
 
 # %%
 script = {
     GLOBAL: {
-        TRANSITIONS: [
-            Tr(
-                dst=("main_flow", f"{attachment}_node"),
-                cnd=cnd.ExactMatch(attachment),
-            )
+        TRANSITIONS: {
+            ("main_flow", f"{attachment}_node"): cnd.exact_match(attachment)
             for attachment in ATTACHMENTS
-        ]
+        }
     },
     "main_flow": {
         "start_node": {
-            TRANSITIONS: [Tr(dst="intro_node", cnd=cnd.ExactMatch("/start"))],
+            TRANSITIONS: {"intro_node": cnd.exact_match("/start")},
         },
         "intro_node": {
-            RESPONSE: f'Type {", ".join(QUOTED_ATTACHMENTS[:-1])}'
-            f" or {QUOTED_ATTACHMENTS[-1]}"
-            f" to receive a corresponding attachment!",
+            RESPONSE: Message(
+                f'Type {", ".join(QUOTED_ATTACHMENTS[:-1])}'
+                f" or {QUOTED_ATTACHMENTS[-1]}"
+                f" to receive a corresponding attachment!"
+            ),
         },
         "location_node": {
             RESPONSE: Message(
-                text="Here's your location!",
+                "Here's your location!",
                 attachments=[Location(**location_data)],
             ),
         },
         "contact_node": {
             RESPONSE: Message(
-                text="Here's your contact!",
+                "Here's your contact!",
                 attachments=[Contact(**contact_data)],
             ),
         },
         "poll_node": {
             RESPONSE: Message(
-                text="Here's your poll!",
+                "Here's your poll!",
                 attachments=[
                     Poll(
                         question="What is the poll question?",
@@ -181,55 +182,55 @@ script = {
         },
         "sticker_node": {
             RESPONSE: Message(
-                text="Here's your sticker!",
+                "Here's your sticker!",
                 attachments=[Sticker(**sticker_data)],
             ),
         },
         "audio_node": {
             RESPONSE: Message(
-                text="Here's your audio!",
+                "Here's your audio!",
                 attachments=[Audio(**audio_data)],
             ),
         },
         "video_node": {
             RESPONSE: Message(
-                text="Here's your video!",
+                "Here's your video!",
                 attachments=[Video(**video_data)],
             ),
         },
         "animation_node": {
             RESPONSE: Message(
-                text="Here's your animation!",
+                "Here's your animation!",
                 attachments=[Animation(**animation_data)],
             ),
         },
         "image_node": {
             RESPONSE: Message(
-                text="Here's your image!",
+                "Here's your image!",
                 attachments=[Image(**image_data)],
             ),
         },
         "document_node": {
             RESPONSE: Message(
-                text="Here's your document!",
+                "Here's your document!",
                 attachments=[Document(**document_data)],
             ),
         },
         "voice_message_node": {
             RESPONSE: Message(
-                text="Here's your voice message!",
+                "Here's your voice message!",
                 attachments=[VoiceMessage(source=audio_data["source"])],
             ),
         },
         "video_message_node": {
             RESPONSE: Message(
-                text="Here's your video message!",
+                "Here's your video message!",
                 attachments=[VideoMessage(source=video_data["source"])],
             ),
         },
         "media_group_node": {
             RESPONSE: Message(
-                text="Here's your media group!",
+                "Here's your media group!",
                 attachments=[
                     MediaGroup(
                         group=[
@@ -241,10 +242,12 @@ script = {
             ),
         },
         "fallback_node": {
-            RESPONSE: f"Unknown attachment type, try again! "
-            f"Supported attachments are: "
-            f'{", ".join(QUOTED_ATTACHMENTS[:-1])} '
-            f"and {QUOTED_ATTACHMENTS[-1]}.",
+            RESPONSE: Message(
+                f"Unknown attachment type, try again! "
+                f"Supported attachments are: "
+                f'{", ".join(QUOTED_ATTACHMENTS[:-1])} '
+                f"and {QUOTED_ATTACHMENTS[-1]}."
+            ),
         },
     },
 }

@@ -7,7 +7,7 @@ store and retrieve context data.
 """
 
 import asyncio
-from typing import Hashable, Dict
+from typing import Hashable
 
 try:
     import aiofiles
@@ -17,14 +17,19 @@ try:
 except ImportError:
     json_available = False
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from .database import DBContextStorage, threadsafe_method
-from chatsky.core import Context
+from chatsky.script import Context
 
 
 class SerializableStorage(BaseModel, extra="allow"):
-    __pydantic_extra__: Dict[str, Context]
+    @model_validator(mode="before")
+    @classmethod
+    def validate_any(cls, vals):
+        for key, value in vals.items():
+            vals[key] = Context.cast(value)
+        return vals
 
 
 class JSONContextStorage(DBContextStorage):
@@ -50,7 +55,7 @@ class JSONContextStorage(DBContextStorage):
     @threadsafe_method
     async def get_item_async(self, key: Hashable) -> Context:
         await self._load()
-        return Context.model_validate(self.storage.model_extra.__getitem__(str(key)))
+        return Context.cast(self.storage.model_extra.__getitem__(str(key)))
 
     @threadsafe_method
     async def del_item_async(self, key: Hashable):

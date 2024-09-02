@@ -18,9 +18,10 @@ import os
 
 from chatsky.context_storages import context_storage_factory
 
-from chatsky import Pipeline
+from chatsky.pipeline import Pipeline
 from chatsky.utils.testing.common import (
     check_happy_path,
+    run_interactive_mode,
     is_interactive_mode,
 )
 from chatsky.utils.testing.toy_script import TOY_SCRIPT_KWARGS, HAPPY_PATH
@@ -46,6 +47,6 @@ pipeline = Pipeline(**TOY_SCRIPT_KWARGS, context_storage=db)
 
 # %%
 if __name__ == "__main__":
-    check_happy_path(pipeline, HAPPY_PATH, printout=True)
+    check_happy_path(pipeline, HAPPY_PATH)
     if is_interactive_mode():
-        pipeline.run()
+        run_interactive_mode(pipeline)

@@ -17,8 +17,11 @@ Telegram API token is required to access telegram API.
 # %%
 import os
 
-from chatsky import RESPONSE, TRANSITIONS, Pipeline, Tr, cnd, dst
+from chatsky.script import conditions as cnd
+from chatsky.script import labels as lbl
+from chatsky.script import RESPONSE, TRANSITIONS, Message
 from chatsky.messengers.telegram import LongpollingInterface
+from chatsky.pipeline import Pipeline
 from chatsky.utils.testing.common import is_interactive_mode
 
 
@@ -48,19 +51,15 @@ They can be passed directly to a Chatsky `Pipeline` instance.
 script = {
     "greeting_flow": {
         "start_node": {
-            TRANSITIONS: [
-                Tr(dst="greeting_node", cnd=cnd.ExactMatch("/start"))
-            ],
+            TRANSITIONS: {"greeting_node": cnd.exact_match("/start")},
         },
         "greeting_node": {
-            RESPONSE: "Hi",
-            TRANSITIONS: [Tr(dst=dst.Current())],
+            RESPONSE: Message("Hi"),
+            TRANSITIONS: {lbl.repeat(): cnd.true()},
         },
         "fallback_node": {
-            RESPONSE: "Please, repeat the request",
-            TRANSITIONS: [
-                Tr(dst="greeting_node", cnd=cnd.ExactMatch("/start"))
-            ],
+            RESPONSE: Message("Please, repeat the request"),
+            TRANSITIONS: {"greeting_node": cnd.exact_match("/start")},
         },
     }
 }

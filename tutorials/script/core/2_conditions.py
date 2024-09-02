@@ -5,8 +5,10 @@
 This tutorial shows different options for
 setting transition conditions from one node to another.
 
-Here, [conditions](%doclink(api,conditions.standard))
+Here, [conditions](%doclink(api,script.conditions.std_conditions))
 for script transitions are shown.
+
+First of all, let's do all the necessary imports from Chatsky.
 """
 
 # %pip install chatsky
@@ -14,152 +16,153 @@ for script transitions are shown.
 # %%
 import re
 
-from chatsky.core import (
-    Context,
-    TRANSITIONS,
-    RESPONSE,
-    Message,
-    Pipeline,
-    BaseCondition,
-    Transition as Tr,
-)
-import chatsky.conditions as cnd
+from chatsky.script import Context, TRANSITIONS, RESPONSE, Message
+import chatsky.script.conditions as cnd
+from chatsky.pipeline import Pipeline
 
 from chatsky.utils.testing.common import (
     check_happy_path,
     is_interactive_mode,
+    run_interactive_mode,
 )
 
 # %% [markdown]
 """
-The transition condition is determined by
-%mddoclink(api,core.script_function,BaseCondition).
-
-If this function returns `True`,
-then the corresponding transition is considered possible.
-
+The transition condition is set by the function.
+If this function returns the value `True`,
+then the actor performs the corresponding transition.
+Actor is responsible for processing user input and determining the appropriate
+response based on the current state of the conversation and the script.
+See tutorial 1 of pipeline (pipeline/1_basics) to learn more about Actor.
 Condition functions have signature
 
-    class MyCondition(BaseCondition):
-        async def call(self, ctx: Context) -> bool:
+    def func(ctx: Context, pipeline: Pipeline) -> bool
 
-This script covers the following pre-defined conditions:
+Out of the box `chatsky.script.conditions` offers the
+    following options for setting conditions:
 
-- `ExactMatch` returns `True` if the user's request completely
+* `exact_match` returns `True` if the user's request completely
     matches the value passed to the function.
-- `Regexp` returns `True` if the pattern matches the user's request.
-    `Regexp` has same signature as `re.compile` function.
-- `Any` returns `True` if one element of input sequence of conditions is `True`.
-- `All` returns `True` if All elements of input
+* `regexp` returns `True` if the pattern matches the user's request,
+    while the user's request must be a string.
+    `regexp` has same signature as `re.compile` function.
+* `aggregate` returns `bool` value as
+    a result after aggregate by `aggregate_func`
+    for input sequence of conditions.
+    `aggregate_func == any` by default. `aggregate` has alias `agg`.
+* `any` returns `True` if one element of input sequence of conditions is `True`.
+    `any(input_sequence)` is equivalent to
+    `aggregate(input sequence, aggregate_func=any)`.
+* `all` returns `True` if all elements of input
     sequence of conditions are `True`.
+    `all(input_sequence)` is equivalent to
+    `aggregate(input sequence, aggregate_func=all)`.
+* `negation` returns negation of passed function. `negation` has alias `neg`.
+* `has_last_labels` covered in the following examples.
+* `true` returns `True`.
+* `false` returns `False`.
 
-For a full list of available conditions see
-[here](%doclink(api,conditions.standard)).
+For example function
+```
+def always_true_condition(ctx: Context, pipeline: Pipeline) -> bool:
+    return True
+```
+always returns `True` and `always_true_condition` function
+is the same as `chatsky.script.conditions.std_conditions.true()`.
 
-The `cnd` field of `Transition` may also be a constant bool value.
+The functions to be used in the `toy_script` are declared here.
 """
 
 
 # %%
-class HiLowerCase(BaseCondition):
-    """
-    Return True if `hi` in both uppercase and lowercase
-    letters is contained in the user request.
-    """
-
-    async def call(self, ctx: Context) -> bool:
-        request = ctx.last_request
-        return "hi" in request.text.lower()
+def hi_lower_case_condition(ctx: Context, _: Pipeline) -> bool:
+    request = ctx.last_request
+    # Returns True if `hi` in both uppercase and lowercase
+    # letters is contained in the user request.
+    if request is None or request.text is None:
+        return False
+    return "hi" in request.text.lower()
 
 
-# %% [markdown]
-"""
-Conditions are subclasses of `pydantic.BaseModel`.
-
-You can define custom fields to make them more customizable:
-"""
-
-
-# %%
-class ComplexUserAnswer(BaseCondition):
-    """
-    Checks if the misc field of the last message is of a certain value.
-
-    Messages are more complex than just strings.
-    The misc field can be used to store metadata about the message.
-    More on that in the next tutorial.
-    """
-
-    value: dict
-
-    async def call(self, ctx: Context) -> bool:
-        request = ctx.last_request
-        return request.misc == self.value
+def complex_user_answer_condition(ctx: Context, _: Pipeline) -> bool:
+    request = ctx.last_request
+    # The user request can be anything.
+    if request is None or request.misc is None:
+        return False
+    return {"some_key": "some_value"} == request.misc
 
 
-customized_condition = ComplexUserAnswer(value={"some_key": "some_value"})
+def predetermined_condition(condition: bool):
+    # Wrapper for internal condition function.
+    def internal_condition_function(ctx: Context, _: Pipeline) -> bool:
+        # It always returns `condition`.
+        return condition
+
+    return internal_condition_function
 
 
 # %%
 toy_script = {
     "greeting_flow": {
-        "start_node": {
-            TRANSITIONS: [Tr(dst="node1", cnd=cnd.ExactMatch("Hi"))],
+        "start_node": {  # This is the initial node,
+            # it doesn't contain a `RESPONSE`.
+            RESPONSE: Message(),
+            TRANSITIONS: {"node1": cnd.exact_match("Hi")},
             # If "Hi" == request of user then we make the transition
         },
         "node1": {
-            RESPONSE: "Hi, how are you?",
-            TRANSITIONS: [
-                Tr(
-                    dst="node2",
-                    cnd=cnd.Regexp(r".*how are you", flags=re.IGNORECASE),
-                )
-            ],
-            # pattern matching
+            RESPONSE: Message("Hi, how are you?"),
+            TRANSITIONS: {"node2": cnd.regexp(r".*how are you", re.IGNORECASE)},
+            # pattern matching (precompiled)
         },
         "node2": {
-            RESPONSE: "Good. What do you want to talk about?",
-            TRANSITIONS: [
-                Tr(
-                    dst="node3",
-                    cnd=cnd.All(
-                        cnd.Regexp(r"talk"), cnd.Regexp(r"about.*music")
-                    ),
+            RESPONSE: Message("Good. What do you want to talk about?"),
+            TRANSITIONS: {
+                "node3": cnd.all(
+                    [cnd.regexp(r"talk"), cnd.regexp(r"about.*music")]
                 )
-            ],
-            # Combine sequences of conditions with `cnd.All`
+            },
+            # Mix sequence of conditions by `cnd.all`.
+            # `all` is alias `aggregate` with
+            # `aggregate_func` == `all`.
         },
         "node3": {
-            RESPONSE: "Sorry, I can not talk about music now.",
-            TRANSITIONS: [
-                Tr(dst="node4", cnd=cnd.Regexp(re.compile(r"Ok, goodbye.")))
-            ],
+            RESPONSE: Message("Sorry, I can not talk about music now."),
+            TRANSITIONS: {"node4": cnd.regexp(re.compile(r"Ok, goodbye."))},
+            # pattern matching by precompiled pattern
         },
         "node4": {
-            RESPONSE: "bye",
-            TRANSITIONS: [
-                Tr(
-                    dst="node1",
-                    cnd=cnd.Any(
-                        HiLowerCase(),
-                        cnd.ExactMatch("hello"),
-                    ),
+            RESPONSE: Message("bye"),
+            TRANSITIONS: {
+                "node1": cnd.any(
+                    [
+                        hi_lower_case_condition,
+                        cnd.exact_match("hello"),
+                    ]
                 )
-            ],
-            # Combine sequences of conditions with `cnd.Any`
+            },
+            # Mix sequence of conditions by `cnd.any`.
+            # `any` is alias `aggregate` with
+            # `aggregate_func` == `any`.
         },
         "fallback_node": {  # We get to this node
-            # if no suitable transition was found
-            RESPONSE: "Ooops",
-            TRANSITIONS: [
-                Tr(dst="node1", cnd=customized_condition),
-                # use a previously instantiated condition here
-                Tr(dst="start_node", cnd=False),
-                # This transition will never be made
-                Tr(dst="fallback_node"),
-                # `True` is the default value of `cnd`
-                # this transition will always be valid
-            ],
+            # if an error occurred while the agent was running.
+            RESPONSE: Message("Ooops"),
+            TRANSITIONS: {
+                "node1": complex_user_answer_condition,
+                # The user request can be more than just a string.
+                # First we will check returned value of
+                # `complex_user_answer_condition`.
+                # If the value is `True` then we will go to `node1`.
+                # If the value is `False` then we will check a result of
+                # `predetermined_condition(True)` for `fallback_node`.
+                "fallback_node": predetermined_condition(
+                    True
+                ),  # or you can use `cnd.true()`
+                # Last condition function will return
+                # `true` and will repeat `fallback_node`
+                # if `complex_user_answer_condition` return `false`.
+            },
         },
     }
 }
@@ -216,6 +219,6 @@ pipeline = Pipeline(
 )
 
 if __name__ == "__main__":
-    check_happy_path(pipeline, happy_path, printout=True)
+    check_happy_path(pipeline, happy_path)
     if is_interactive_mode():
-        pipeline.run()
+        run_interactive_mode(pipeline)

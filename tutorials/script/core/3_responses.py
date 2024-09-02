@@ -4,8 +4,10 @@
 
 This tutorial shows different options for setting responses.
 
-Here, [responses](%doclink(api,responses.standard))
+Here, [responses](%doclink(api,script.responses.std_responses))
 that allow giving custom answers to users are shown.
+
+Let's do all the necessary imports from Chatsky.
 """
 
 # %pip install chatsky
@@ -13,147 +15,104 @@ that allow giving custom answers to users are shown.
 # %%
 import re
 import random
-from typing import Union
 
-from chatsky.core import (
-    TRANSITIONS,
-    RESPONSE,
-    Context,
-    Message,
-    Pipeline,
-    Transition as Tr,
-    BaseResponse,
-    MessageInitTypes,
-    AnyResponse,
-    AbsoluteNodeLabel,
-)
-import chatsky.responses as rsp
-import chatsky.conditions as cnd
+from chatsky.script import TRANSITIONS, RESPONSE, Context, Message
+import chatsky.script.responses as rsp
+import chatsky.script.conditions as cnd
 
+from chatsky.pipeline import Pipeline
 from chatsky.utils.testing.common import (
     check_happy_path,
     is_interactive_mode,
+    run_interactive_mode,
 )
 
 
 # %% [markdown]
 """
-Response of a node is determined by
-%mddoclink(api,core.script_function,BaseResponse).
+The response can be set by Callable or *Message:
 
-Response can be constant in which case it is an instance
-of %mddoclink(api,core.message,Message).
+* Callable objects. If the object is callable it must have a special signature:
 
-`Message` has an option to be instantiated from a string
-which is what we've been using so far.
-Under the hood `RESPONSE: "text"` is converted into
-`RESPONSE: Message(text="text")`.
-This class should be used over simple strings when
-some additional information needs to be sent such as images/metadata.
+        func(ctx: Context, pipeline: Pipeline) -> Message
 
-More information on that can be found in the [media tutorial](
-%doclink(tutorial,script.responses.1_media)
-).
+* *Message objects. If the object is *Message
+    it will be returned by the agent as a response.
 
-Instances of this class are returned by
-%mddoclink(api,core.context,Context.last_request) and
-%mddoclink(api,core.context,Context.last_response).
-In the previous tutorial we showed how to access fields of messages
-to build custom conditions.
 
-Node `RESPONSE` can also be set to a custom function.
-This is demonstrated below:
+The functions to be used in the `toy_script` are declared here.
 """
 
 
 # %%
-class CannotTalkAboutTopic(BaseResponse):
-    async def call(self, ctx: Context) -> MessageInitTypes:
-        request = ctx.last_request
-        if request.text is None:
-            topic = None
-        else:
-            topic_pattern = re.compile(r"(.*talk about )(.*)\.")
-            topic = topic_pattern.findall(request.text)
-            topic = topic and topic[0] and topic[0][-1]
-        if topic:
-            return f"Sorry, I can not talk about {topic} now."
-        else:
-            return "Sorry, I can not talk about that now."
+def cannot_talk_about_topic_response(ctx: Context, _: Pipeline) -> Message:
+    request = ctx.last_request
+    if request is None or request.text is None:
+        topic = None
+    else:
+        topic_pattern = re.compile(r"(.*talk about )(.*)\.")
+        topic = topic_pattern.findall(request.text)
+        topic = topic and topic[0] and topic[0][-1]
+    if topic:
+        return Message(f"Sorry, I can not talk about {topic} now.")
+    else:
+        return Message("Sorry, I can not talk about that now.")
 
 
-class UpperCase(BaseResponse):
-    response: AnyResponse  # either const response or another BaseResponse
-
-    def __init__(self, response: Union[MessageInitTypes, BaseResponse]):
-        # defining this allows passing response as a positional argument
-        # and allows to make a more detailed type annotation:
-        # AnyResponse cannot be a string but can be initialized from it,
-        # so MessageInitTypes annotates that we can init from a string
-        super().__init__(response=response)
-
-    async def call(self, ctx: Context) -> MessageInitTypes:
-        response = await self.response(ctx)
-        # const response is converted to BaseResponse,
-        # so we call it regardless of the response type
-
+def upper_case_response(response: Message):
+    # wrapper for internal response function
+    def func(_: Context, __: Pipeline) -> Message:
         if response.text is not None:
             response.text = response.text.upper()
         return response
 
-
-class FallbackTrace(BaseResponse):
-    async def call(self, ctx: Context) -> MessageInitTypes:
-        return Message(
-            misc={
-                "previous_node": list(ctx.labels.values())[-2],
-                "last_request": ctx.last_request,
-            }
-        )
+    return func
 
 
-# %% [markdown]
-"""
-Chatsky provides one basic response as part of
-the %mddoclink(api,responses.standard) module:
-
-- `RandomChoice` randomly chooses a message out of the ones passed to it.
-"""
+def fallback_trace_response(ctx: Context, _: Pipeline) -> Message:
+    return Message(
+        misc={
+            "previous_node": list(ctx.labels.values())[-2],
+            "last_request": ctx.last_request,
+        }
+    )
 
 
 # %%
 toy_script = {
     "greeting_flow": {
-        "start_node": {
-            TRANSITIONS: [Tr(dst="node1", cnd=cnd.ExactMatch("Hi"))],
+        "start_node": {  # This is an initial node,
+            # it doesn't need a `RESPONSE`.
+            RESPONSE: Message(),
+            TRANSITIONS: {"node1": cnd.exact_match("Hi")},
+            # If "Hi" == request of user then we make the transition
         },
         "node1": {
-            RESPONSE: rsp.RandomChoice(
-                "Hi, what is up?",
-                "Hello, how are you?",
+            RESPONSE: rsp.choice(
+                [
+                    Message("Hi, what is up?"),
+                    Message("Hello, how are you?"),
+                ]
             ),
             # Random choice from candidate list.
-            TRANSITIONS: [
-                Tr(dst="node2", cnd=cnd.ExactMatch("I'm fine, how are you?"))
-            ],
+            TRANSITIONS: {"node2": cnd.exact_match("I'm fine, how are you?")},
         },
         "node2": {
-            RESPONSE: "Good. What do you want to talk about?",
-            TRANSITIONS: [
-                Tr(dst="node3", cnd=cnd.ExactMatch("Let's talk about music."))
-            ],
+            RESPONSE: Message("Good. What do you want to talk about?"),
+            TRANSITIONS: {"node3": cnd.exact_match("Let's talk about music.")},
         },
         "node3": {
-            RESPONSE: CannotTalkAboutTopic(),
-            TRANSITIONS: [Tr(dst="node4", cnd=cnd.ExactMatch("Ok, goodbye."))],
+            RESPONSE: cannot_talk_about_topic_response,
+            TRANSITIONS: {"node4": cnd.exact_match("Ok, goodbye.")},
         },
         "node4": {
-            RESPONSE: UpperCase("bye"),
-            TRANSITIONS: [Tr(dst="node1", cnd=cnd.ExactMatch("Hi"))],
+            RESPONSE: upper_case_response(Message("bye")),
+            TRANSITIONS: {"node1": cnd.exact_match("Hi")},
         },
-        "fallback_node": {
-            RESPONSE: FallbackTrace(),
-            TRANSITIONS: [Tr(dst="node1", cnd=cnd.ExactMatch("Hi"))],
+        "fallback_node": {  # We get to this node
+            # if an error occurred while the agent was running.
+            RESPONSE: fallback_trace_response,
+            TRANSITIONS: {"node1": cnd.exact_match("Hi")},
         },
     }
 }
@@ -175,46 +134,38 @@ happy_path = (
     ("Ok, goodbye.", "BYE"),  # node3 -> node4
     ("Hi", "Hello, how are you?"),  # node4 -> node1
     (
-        "stop",
+        Message("stop"),
         Message(
             misc={
-                "previous_node": AbsoluteNodeLabel(
-                    flow_name="greeting_flow", node_name="node1"
-                ),
+                "previous_node": ("greeting_flow", "node1"),
                 "last_request": Message("stop"),
             }
         ),
     ),
     # node1 -> fallback_node
     (
-        "one",
+        Message("one"),
         Message(
             misc={
-                "previous_node": AbsoluteNodeLabel(
-                    flow_name="greeting_flow", node_name="fallback_node"
-                ),
+                "previous_node": ("greeting_flow", "fallback_node"),
                 "last_request": Message("one"),
             }
         ),
     ),  # f_n->f_n
     (
-        "help",
+        Message("help"),
         Message(
             misc={
-                "previous_node": AbsoluteNodeLabel(
-                    flow_name="greeting_flow", node_name="fallback_node"
-                ),
+                "previous_node": ("greeting_flow", "fallback_node"),
                 "last_request": Message("help"),
             }
         ),
     ),  # f_n->f_n
     (
-        "nope",
+        Message("nope"),
         Message(
             misc={
-                "previous_node": AbsoluteNodeLabel(
-                    flow_name="greeting_flow", node_name="fallback_node"
-                ),
+                "previous_node": ("greeting_flow", "fallback_node"),
                 "last_request": Message("nope"),
             }
         ),
@@ -245,6 +196,6 @@ pipeline = Pipeline(
 )
 
 if __name__ == "__main__":
-    check_happy_path(pipeline, happy_path, printout=True)
+    check_happy_path(pipeline, happy_path)
     if is_interactive_mode():
-        pipeline.run()
+        run_interactive_mode(pipeline)

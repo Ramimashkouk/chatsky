@@ -151,7 +151,6 @@ autodoc_default_options = {
     "members": True,
     "undoc-members": False,
     "private-members": True,
-    "special-members": "__call__",
     "member-order": "bysource",
     "exclude-members": "_abc_impl, model_fields, model_computed_fields, model_config",
 }
@@ -185,22 +184,20 @@ def setup(_):
                 ],
             ),
             ("tutorials.slots", "Slots"),
+            ("tutorials.utils", "Utils"),
             ("tutorials.stats", "Stats"),
         ]
     )
     regenerate_apiref(
         [
-            ("chatsky.core.service", "Core.Service"),
-            ("chatsky.core", "Core"),
-            ("chatsky.conditions", "Conditions"),
-            ("chatsky.destinations", "Destinations"),
-            ("chatsky.responses", "Responses"),
-            ("chatsky.processing", "Processing"),
             ("chatsky.context_storages", "Context Storages"),
             ("chatsky.messengers", "Messenger Interfaces"),
+            ("chatsky.pipeline", "Pipeline"),
+            ("chatsky.script", "Script"),
             ("chatsky.slots", "Slots"),
             ("chatsky.stats", "Stats"),
             ("chatsky.utils.testing", "Testing Utils"),
+            ("chatsky.utils.turn_caching", "Caching"),
             ("chatsky.utils.db_benchmark", "DB Benchmark"),
             ("chatsky.utils.devel", "Development Utils"),
         ]

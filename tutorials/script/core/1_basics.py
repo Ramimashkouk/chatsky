@@ -2,9 +2,12 @@
 """
 # Core: 1. Basics
 
-This notebook shows a basic example of creating a simple dialog bot (agent).
+This notebook shows basic tutorial of creating a simple dialog bot (agent).
 
-Here, basic usage of %mddoclink(api,core.pipeline,Pipeline) is shown.
+Here, basic usege of %mddoclink(api,pipeline.pipeline.pipeline,Pipeline)
+primitive is shown: its' creation with
+%mddoclink(api,pipeline.pipeline.pipeline,Pipeline)
+and execution.
 
 Additionally, function %mddoclink(api,utils.testing.common,check_happy_path)
 that can be used for Pipeline testing is presented.
@@ -15,17 +18,14 @@ Let's do all the necessary imports from Chatsky:
 # %pip install chatsky
 
 # %%
-from chatsky.core import (
-    TRANSITIONS,
-    RESPONSE,
-    Pipeline,
-    Transition as Tr,
-)
-import chatsky.conditions as cnd
+from chatsky.script import TRANSITIONS, RESPONSE, Message
+from chatsky.pipeline import Pipeline
+import chatsky.script.conditions as cnd
 
 from chatsky.utils.testing.common import (
     check_happy_path,
     is_interactive_mode,
+    run_interactive_mode,
 )
 
 
@@ -33,11 +33,9 @@ from chatsky.utils.testing.common import (
 """
 First of all, to create a dialog agent, we need to create a dialog script.
 Below script means a dialog script.
-
 A script is a dictionary, where the keys are the names of the flows.
 A script can contain multiple scripts, which is needed in order to divide
 a dialog into sub-dialogs and process them separately.
-
 For example, the separation can be tied to the topic of the dialog.
 In this tutorial there is one flow called `greeting_flow`.
 
@@ -46,9 +44,10 @@ Each node has the keywords `RESPONSE` and `TRANSITIONS`.
 
 * `RESPONSE` contains the response
     that the agent will return from the current node.
-* `TRANSITIONS` is a list of %mddoclink(api,core.transition,Transition)s
-    that describes possible transitions from the current node as well as their
-    conditions and priorities.
+* `TRANSITIONS` describes transitions from the
+    current node to another nodes. This is a dictionary,
+    where keys are names of the nodes and
+    values are conditions of transition to them.
 """
 
 
@@ -57,37 +56,34 @@ toy_script = {
     "greeting_flow": {
         "start_node": {  # This is the initial node,
             # it doesn't contain a `RESPONSE`.
-            TRANSITIONS: [Tr(dst="node1", cnd=cnd.ExactMatch("Hi"))],
-            # This transition means that the next node would be "node1"
-            # if user's message is "Hi"
+            RESPONSE: Message(),
+            TRANSITIONS: {"node1": cnd.exact_match("Hi")},
+            # If "Hi" == request of the user then we make the transition.
         },
         "node1": {
-            RESPONSE: "Hi, how are you?",
-            # When the bot enters node1,
+            RESPONSE: Message(
+                text="Hi, how are you?"
+            ),  # When the agent enters node1,
             # return "Hi, how are you?".
-            TRANSITIONS: [
-                Tr(dst="node2", cnd=cnd.ExactMatch("I'm fine, how are you?"))
-            ],
+            TRANSITIONS: {"node2": cnd.exact_match("I'm fine, how are you?")},
         },
         "node2": {
-            RESPONSE: "Good. What do you want to talk about?",
-            TRANSITIONS: [
-                Tr(dst="node3", cnd=cnd.ExactMatch("Let's talk about music."))
-            ],
+            RESPONSE: Message("Good. What do you want to talk about?"),
+            TRANSITIONS: {"node3": cnd.exact_match("Let's talk about music.")},
         },
         "node3": {
-            RESPONSE: "Sorry, I can not talk about music now.",
-            TRANSITIONS: [Tr(dst="node4", cnd=cnd.ExactMatch("Ok, goodbye."))],
+            RESPONSE: Message("Sorry, I can not talk about music now."),
+            TRANSITIONS: {"node4": cnd.exact_match("Ok, goodbye.")},
         },
         "node4": {
-            RESPONSE: "Bye",
-            TRANSITIONS: [Tr(dst="node1", cnd=cnd.ExactMatch("Hi"))],
+            RESPONSE: Message("Bye"),
+            TRANSITIONS: {"node1": cnd.exact_match("Hi")},
         },
         "fallback_node": {
             # We get to this node if the conditions
             # for switching to other nodes are not performed.
-            RESPONSE: "Ooops",
-            TRANSITIONS: [Tr(dst="node1", cnd=cnd.ExactMatch("Hi"))],
+            RESPONSE: Message("Ooops"),
+            TRANSITIONS: {"node1": cnd.exact_match("Hi")},
         },
     }
 }
@@ -132,24 +128,13 @@ happy_path = (
 # %% [markdown]
 """
 A `Pipeline` is an object that processes user
-inputs and produces responses.
-
-To create the pipeline you need to pass the script (`script`),
+inputs and returns responses.
+To create the pipeline you need to pass the script (`toy_script`),
 initial node (`start_label`) and
 the node to which the default transition will take place
 if none of the current conditions are met (`fallback_label`).
-
-If `fallback_label` is not set, it defaults to `start_label`.
-
-Roughly, the process is as follows:
-
-1. Pipeline receives a user request.
-2. The next node is determined with the help of `TRANSITIONS`.
-3. Response of the chosen node is sent to the user.
-
-For a more detailed description, see [here](
-%doclink(api,core.pipeline,Pipeline._run_pipeline)
-).
+By default, if `fallback_label` is not set,
+then its value becomes equal to `start_label`.
 """
 
 
@@ -164,9 +149,11 @@ if __name__ == "__main__":
     check_happy_path(
         pipeline,
         happy_path,
-        printout=True,
     )  # This is a function for automatic tutorial
     # running (testing tutorial) with `happy_path`.
 
+    # Run tutorial in interactive mode if not in IPython env
+    # and if `DISABLE_INTERACTIVE_MODE` is not set.
     if is_interactive_mode():
-        pipeline.run()
+        run_interactive_mode(pipeline)
+        # This runs tutorial in interactive mode.
