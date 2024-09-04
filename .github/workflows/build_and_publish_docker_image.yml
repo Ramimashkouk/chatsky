@@ -9,6 +9,7 @@ on:
       - 'chatsky/utils/docker/**'
   workflow_dispatch:
 
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
