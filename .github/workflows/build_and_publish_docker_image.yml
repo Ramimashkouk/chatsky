@@ -46,7 +46,7 @@ jobs:
       - name: Build and upload image
         uses: docker/build-push-action@v5
         with:
-          context: chatsky
+          context: .
           file: chatsky/utils/docker/chatsky/dockerfile_chatsky
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
