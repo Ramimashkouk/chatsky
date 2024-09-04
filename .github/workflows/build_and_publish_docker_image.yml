@@ -3,8 +3,8 @@ name: build_and_publish_docker_image
 on:
   push:
     branches:
-      - 'master'
-      - 'feat/add-docker-image'
+      - master
+      - feat/add-docker-image
     paths:
       - 'chatsky/utils/docker/**'
   workflow_dispatch:
