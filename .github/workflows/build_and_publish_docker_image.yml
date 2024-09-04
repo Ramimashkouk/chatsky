@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'master'
+      - 'feat/add-docker-image'
     paths:
       - 'chatsky/utils/docker/**'
   workflow_dispatch:
