@@ -40,9 +40,6 @@ jobs:
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
 
-            - name: Test dockerfile
-            run: docker compose up chatsky --build
-
       - name: Test Dockerfile
         run: docker build -t chatsky_image -f chatsky/utils/docker/chatsky/dockerfile_chatsky .    
 
