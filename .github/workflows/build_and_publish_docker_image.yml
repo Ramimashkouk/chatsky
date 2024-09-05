@@ -55,4 +55,4 @@ jobs:
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: Ramimashkouk/chatsky
+          repository: ramima1996/new_test
