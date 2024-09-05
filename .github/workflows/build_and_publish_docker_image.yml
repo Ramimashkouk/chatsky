@@ -36,7 +36,7 @@ jobs:
           flavor: |
             latest=auto
           tags: |
-            # type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
 
       - name: Test Dockerfile
