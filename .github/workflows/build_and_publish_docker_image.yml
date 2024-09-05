@@ -49,5 +49,6 @@ jobs:
         with:
           context: .
           file: chatsky/utils/docker/chatsky/dockerfile_chatsky
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
