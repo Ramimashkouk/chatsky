@@ -36,7 +36,8 @@ jobs:
           flavor: |
             latest=auto
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            # type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
 
       - name: Test Dockerfile
         run: docker build -t chatsky_image -f chatsky/utils/docker/chatsky/dockerfile_chatsky .    
