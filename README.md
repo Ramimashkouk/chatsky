@@ -1,5 +1,7 @@
 # Chatsky
 
+## something new
+
 [![Documentation Status](https://github.com/deeppavlov/chatsky/workflows/build_and_publish_docs/badge.svg?branch=dev)](https://deeppavlov.github.io/chatsky)
 [![Codestyle](https://github.com/deeppavlov/chatsky/workflows/codestyle/badge.svg?branch=dev)](https://github.com/deeppavlov/chatsky/actions/workflows/codestyle.yml)
 [![Tests](https://github.com/deeppavlov/chatsky/workflows/test_coverage/badge.svg?branch=dev)](https://github.com/deeppavlov/chatsky/actions/workflows/test_coverage.yml)
